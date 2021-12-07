@@ -1,0 +1,224 @@
+---
+title: "Internet Speedtest DOE"
+author: "Melky Simorangkir"
+date: "6/10/2021"
+output: 
+  html_document:
+    code_folding: hide
+    theme:  paper
+    highlight: haddock
+    toc: TRUE
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+```
+
+# Assumptions for ANOVA Testing
+
+The assumption of Anova are:
+
+* Samples are independent from one another (within and among groups).
+* Samples were randomly chosen.
+* Response variable is normally distributed
+* Variances are equal among groups.
+
+# Data Preparation
+
+Dalam penelitian ini, dilakukan pemilihan terhadap 3 variabel dependent yaitu _provider_, _location_ dan _time_ yang diindikasikan terdapat pengaruh terhadap kecepatan unduh layanan internet. Berikut adalah variabel - variabel tersebut:
+
+1. Provider (3 level)
+
+* p1 : XL
+* p2 : INDOSAT
+* p3 : TELKOMSEL
+
+2. Location (2 Level)
+
+* l1 : Perumahan
+* l2 : Perkantoran
+
+3. Time (2 Level)
+
+* t1 : Working Hour
+* t2 : Non Working Hour
+
+Pada pengambilan data kecepatan unduh layanan internet, beberapa batasan yang dilakukan untuk penyamaan perlakuan yaitu:
+
+1. Perangkat selular yang digunakan memiliki kemampuan yang sama dalam mengakses layanan internet.
+2. Pengujian dilakukan tidak pada suatu ketinggian tertentu seperti pada lantai gedung yang tinggi.
+3. Paket internet yang digunakan merupakan paket internet berbasis kuota yang dimana tidak ada pengaruh terhadap _Fair Usage Policy_ (FUP)
+
+```{r, warning=FALSE, echo=TRUE, include=FALSE}
+library(readxl)
+library(doebioresearch)
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+library(rstatix)
+```
+
+
+## Import dataset
+
+```{r}
+speedtest <- read_excel(
+  "E:/University of Indonesia/Semester 2 Tahun 2021/Statistika Lanjut/Tugas FD/DataSpeedtest.xlsx")
+speedtest$Provider <- factor(speedtest$Provider)
+speedtest$Location <- factor(speedtest$Location)
+speedtest$Time <- factor(speedtest$Time)
+
+speed.df <- data.frame(speedtest)
+speed.df
+```
+
+# Data Analysis
+
+## Interaction Plotting
+
+```{r}
+interaction.plot(speedtest$Provider, 
+                 speedtest$Location, 
+                 speedtest$Speed, 
+                 ylab = "Mean of Speed", 
+                 xlab = "Provider", 
+                 legend = T, 
+                 trace.label = "Location")
+```
+
+Berikut merupakan interaksi rataan untuk *Factor A* terhadap rata - rata kecepatan layanan internet
+
+```{r}
+interaction.plot(speedtest$Provider, 
+                 speedtest$Time, 
+                 speedtest$Speed, 
+                 ylab = "Mean of Speed", 
+                 xlab = "Provider", 
+                 legend = T, 
+                 trace.label = "Time")
+```
+
+
+```{r}
+interaction.plot(speedtest$Location, 
+                 speedtest$Time, 
+                 speedtest$Speed, 
+                 ylab = "Mean of Speed", 
+                 xlab = "Location", 
+                 legend = T, 
+                 trace.label = "Time")
+```
+
+
+## Dataset Plotting
+
+```{r}
+ggplot(speed.df, aes(x = Provider, y = Speed)) +
+  geom_boxplot(fill = "grey80", colour = "blue") +
+  scale_x_discrete() + xlab("Provider") +
+  ylab("Speed")
+
+ggplot(speed.df, aes(x = Location, y = Speed)) +
+  geom_boxplot(fill = "grey80", colour = "blue") +
+  scale_x_discrete() + xlab("Location") +
+  ylab("Speed")
+
+ggplot(speed.df, aes(x = Time, y = Speed)) +
+  geom_boxplot(fill = "grey80", colour = "blue") +
+  scale_x_discrete() + xlab("Time") +
+  ylab("Speed")
+
+```
+
+## Homogenity of Variance Testing
+
+```{r}
+speed.lv <- speedtest %>% levene_test(Speed ~ .)
+speed.lv
+```
+
+Jadi nilai levene test untuk menguji homogenitas variansi adalah `r speed.lv$p` dimana angka ini > 0.05 sehingga dapat dikatakan bahwa data yang digunakan bersifat homogen pada setiap grup.
+
+## Normality testing
+
+```{r}
+shapiro.test(residuals(lm(Speed ~ ., data = speed.df)))
+ggqqplot(residuals(lm(Speed ~ ., data = speed.df)))
+```
+
+Terlihat pada hasil plot data, persebaran data tidak menunjukkan adanya data yang berada jauh atau berbeda secara signifikan sehingga data yang digunakan ini dapat dikatakan berdistribusi secara normal dan dapat digunakan untuk memenuhi asumsi kenormalan.
+
+# Analysis of Variance (ANOVA) 3 Factors
+
+```{r}
+anova_result <- fcrd3fact(speed.df[4],
+                    speed.df$Provider,
+                    speed.df$Location,
+                    speed.df$Time, 1)
+anova_result$Speed[[1]]
+```
+
+Setelah melakukan pengujian dengan menggunakan Analysis of Variance (ANOVA) dengan 3 faktor, hasil dapat dilihat dengan adanya perbedaan rataan yang signifikan pada Faktor B (Lokasi) dan interaksi antara Faktor A dan Faktor B dengan _p-value_ < 0.05. Perbedaan rataan pada interaksi Faktor A dan B signifikansi berada pada rentang 0.01 - 0.05 dimana apabila taraf signikansi berada pada 0.01 maka interaksi Faktor A dan B menjadi tidak signifikan.
+
+
+
+```{r, include=FALSE}
+## Analysis of Variance (ANOVA) 2 Factors with Replications
+
+anova_result2 <- frbd2fact(speed.df[4],
+                           speed.df$Time,
+                           speed.df$Provider,
+                           speed.df$Location,1)
+anova_result2
+```
+
+
+
+## Model Plotting
+
+```{r}
+plot(lm(Speed ~ ., data = speed.df),1)
+plot(lm(Speed ~ ., data = speed.df),2)
+```
+
+
+# Post Hoc Analysis - LSD
+
+Setelah melakukan pengujian dengan menggunakan metode ANOVA ditemukan beberapa faktor yang mempengaruhi kecepatan unduh dari layanan internet, sehingga untuk lebih jelas dalam melihat perbedaan rataan yang mempengaruhinya dilakukan analisa lebih lanjut (Post Hoc Analysis) dengan menggunakan metode _Fisher Least Significant Difference_ atau lebih dikenal dengan LSD.
+
+Pengujian LSD dilakukan pada Faktor B (Location) dan Faktor interaksi A dan B (Interaksi antara _Provider_ dan _Location_), berikut adalah hasil dari pengujian LSD:
+
+
+```{r}
+anova_result$Speed[[8]]
+anova_result$Speed[[9]]
+```
+
+Dapat dilihat dari hasil bahwa ada perbedaan signifikan rataan antara lokasi perkantoran ($l_2$) dan perumahan ($l_1$) berturut - turut sebesar 23.05 dan 13.4889, dengan hasil uji tersebut dapat diindikasikan bahwa pemilihan lokasi (dalam hal ini perumahan dan perkantoran) pada saat menggunakan layanan internet dapat meningkatkan kecepatan unduh layanan internet saat digunakan. Selain itu, hal ini mengindikasikan bahwa traffic layanan yang terjadi di perumahaan pada masa pandemi ini lebih besar dibandingkan dengan layanan yang terjadi di perkantoran.
+
+Untuk diskusi dan penelitian lebih lanjut dapat disarankan untuk melihat apakah benar ada pengaruh yang terjadi pada traffic layanan yang disebabkan oleh aktifitas _work from home_.
+
+```{r}
+anova_result$Speed[[12]]
+anova_result$Speed[[13]]
+```
+
+Untuk pengujian LSD yang kedua, yaitu adanya perbedaan rataan dari interaksi faktor A ( _Provider_ ) dan faktor B ( _Location_) yang mempengaruhi kecepatan unduh layanan internet dimana Provider XL ($p_1$) dan Provider Telkomsel ($p_3$) pada lokasi perkantoran ($l_2$) memiliki perbedaan rataan yang lebih besar dibandingkan kombinasi interaksi faktor _Provider_ dan _Location_ lainnya. Dengan hal ini dapat diindikasikan bahwa pemilihan _Provider_ dan _Location_ yang tepat dapat meningkatkan kecepatan unduh layanan internet berbasis kuota.
+
+## Kesimpulan
+
+Dengan adanya pengujian pengaruh faktor _Provider_, _Location_ dan _Time_ diatas dapat disimpulkan bahwa:
+
+1. _Provider_ yang memberikan layanan internet berbasis kuota yaitu XL, INDOSAT dan TELKOMSEL tidak memiliki perbedaan performansi dalam memberikan kecepatan layanan internet ke pelanggan.
+
+2. _Location_ terindikasi mempengaruhi kecepatan unduh layanan internet dimana lokasi perkantoran memiliki performansi lebih baik dibandingkan lokasi perumahan. Hal ini juga bisa berindikasi terhadap adanya aktifitas _work from home_ pada masa pandemi.
+
+3. _Time_ terindikasi tidak mempengaruhi kecepatan unduh layanan internet. Indikasi ini dapat didiskusikan lebih lanjut dengan melihat apakah penggunaan layanan saat masa pandemi mengalami pergeseran dimana penggunaan layanan internet pada masa pandemi secara menyeluruh tidak dipengaruhi waktu.
+
+4. Adanya pengaruh interaksi Faktor A dan B yaitu _Provider_ dan _Location_ terhadap Kecepatan unduh layanan internet dimana XL dan Telkomsel pada lokasi perkantoran memiliki performansi yang lebih baik daripada interaksi faktor _Provider_ dan _Location_ lainnya.
+
+```{r}
+
+```
+
